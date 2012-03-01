@@ -23,6 +23,16 @@ install nodejs
 install nginx
 install couchdb
 install libnode-cradle
+install curl
+
+# install npm
+which npm 1> /dev/null
+if [[ $? -eq 1 ]]; then
+    curl http://npmjs.org/install.sh | sh
+fi
+
+# install the modules
+npm install express
 
 # create the nginx configuration directory (if needed)
 if [[ ! -d /etc/nginx ]]; then
