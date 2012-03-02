@@ -19,20 +19,16 @@ install () {
 }
 
 # install the packages
+install curl
 install nodejs
 install nginx
 install couchdb
 install libnode-cradle
-install curl
-
-# install npm
 which npm 1> /dev/null
-if [[ $? -eq 1 ]]; then
+if [[ $? -ne 0 ]]; then
     curl http://npmjs.org/install.sh | sh
 fi
 
-# install the modules
-npm install express
 
 # create the nginx configuration directory (if needed)
 if [[ ! -d /etc/nginx ]]; then
@@ -46,6 +42,18 @@ if [[ ! -d /var/www/somedone ]]; then
 fi
 cp -a www/* /var/www/somedone/
 chmod -R 755 /var/www/somedone
+
+# install the node libraries
+if [[ ! -x node_modules/express/bin/express ]]; then
+    npm install express
+else
+    echo "express is installed"
+fi
+if [[ ! -d node_modules/express-resource ]]; then
+    npm install express-resource
+else
+    echo "express-resource is installed"
+fi
 
 # start the daemons
 ### test the coniguration file

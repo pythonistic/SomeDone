@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+    <title>Tester</title>
+</head>
+
+<body>
+
+
+<script language="javascript" src="http://code.jquery.com/jquery-1.7.1.min.js"></script>
+<script language="javascript">
+    $(document).on("ready", function() {
+        var loginRequest = {
+            "userId": "myuser",
+            "passwordHash": "290c83ae82",
+            "clientKey": "82d09821ac"
+        };
+        $.ajax({
+            url: "http://localhost:8100/svc/login",
+            type: "POST",
+            data: JSON.stringify(loginRequest),
+            dataType: "json",
+            success: function(data) {
+                console.log(data);
+                if (data.results === "OK") {
+                    // get the session key and id
+                    sessionKey = data.sessionKey;
+                    sessionId = data.sessionId;
+                    // clear any existing login failure message
+                    $("#login_message").html("");
+                    $("#login").hide();
+                    // load the page content
+                    getNotesContent();
+                } else if (data.results === "LOGIN") {
+                    // display the login popover
+                    $("#login").show();
+                } else if (data.results === "FAILED") {
+                    // display the login popover
+                    $("#login").show();
+                    // display the login failure message
+                    $("#login_message").html("Login failed. Please check your username and password.");
+                }
+            },
+            error: function(data) {
+                console.log("error: " + data);
+            }
+        });
+    });
+</script>
+
+</body>
+</html>
