@@ -37,8 +37,8 @@ http {
         expires             max;
         root                /var/www/somedone;
         
-        location ^/svc/(.*)$ {
-            proxy_pass http://service-backend;
+        location /svc/ {
+            proxy_pass http://127.0.0.1:8101;
         }
         
         location / {
