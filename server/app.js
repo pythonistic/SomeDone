@@ -8,12 +8,14 @@
 app.resource('forums', require('./forum'));
 */
 
-var server = require('express').createServer();
+var express = require('express');
+var server = express.createServer();
+server.use(express.bodyParser());
 
 // handlers
 
-var account = require('./account.js');
 var db = require('./db.js');
+var account = require('./account.js');
 
 // route requests
 
