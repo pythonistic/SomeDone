@@ -38,16 +38,21 @@ session_db.exists(function(err, exists) {
         session_db.create();
         // populate the designs
         session_db.save('_design/sessions', {
-            get_active: {
-                map: function(doc, user_id) {
-                    var results = {}
-                    if (doc.active_flag && doc.user_id === user_id) {
-                        results["body"] = doc;
+            "get_active": {
+                "map": function(doc) {
+                    if (doc.active_flag && doc.user_id && doc.session_id) {
+                        emit(doc.user_id, doc);
                     }
-                    return results;
-                }
+                }/*,
+                "reduce": function(keys, values) {
+                }*/
             }
-        });
+        }, function (err, res) {
+                if (err) {
+                    console.log("err", err);
+                }
+                console.log("res", res);
+            });
     }
 });
 

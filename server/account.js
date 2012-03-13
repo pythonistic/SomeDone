@@ -1,8 +1,17 @@
 #!/usr/bin/env node
 
 var db = require('./db.js');
+var sys = require('sys');
+
+var login_done_invalidate = false;
+var login_done_session = false;
+var login_credentials = {};
+var error_flag = false;
+var response = undefined;
+var results = {};
 
 exports.login = function login(req, res) {
+    response = res;
     var results = { };
     if (req && req.body) {
         var user_id = req.body.userId;
@@ -10,7 +19,15 @@ exports.login = function login(req, res) {
         var client_key = req.body.clientKey;
         
         if (user_id && password_hash && client_key) {
-            results = do_login(user_id, password_hash, req.client.remoteAddress, client_key)
+            // remove the active session
+            get_active_session(user_id, invalidate_session);
+    
+            // log the user in
+            login_credentials["user_id"] = user_id;
+            login_credentials["password_hash"] = password_hash;
+            login_credentials["remote_address"] = req.client.remoteAddress;
+            login_credentials["client_key"] = client_key;
+            do_login();
         } else {
             results["error"] = "unable to login - missing credentials";
         }
@@ -20,15 +37,47 @@ exports.login = function login(req, res) {
     }
     
     console.log("results", results);
-    
-    res.send(results);
 };
 
-var get_active_session = function get_active_session(user_id) {
+var mark_login_done_invalidate = function mark_login_done_invalidate() {
+    console.log("mark_login_done_invalidate");
+    login_done_invalidate = true;
+    send_login_results();
+}
+
+var mark_login_done_session = function mark_login_done_session(session) {
+    console.log("mark_login_done_session", session);
+    login_done_session = session;
+    send_login_results();
+}
+
+var send_login_results = function send_login_results() {
+    if (!results["error"]) {
+        // send success results
+        console.log("login_done_session", login_done_session);
+        if (login_done_invalidate && login_done_session) {
+            // return the session information
+            results["sessionId"] = login_done_session.session_id;
+            results["sessionKey"] = login_done_session.session_key;
+        } else {
+            // don't send anything yet!
+            return;
+        }
+    }
+    
+    response.send(results);
+}
+
+var get_active_session = function get_active_session(user_id, callback) {
     // active session view by user id
-    var active_session = db.session.view("sessions/get_active", user_id);
-    console.log("active sessions:", active_session);
-    return active_session;
+    db.session.view('sessions/get_active', {"key": user_id, "descending": true},
+        function(err, result) {
+            if (result && result.length > 0) {
+                callback(result[0]);
+            } else {
+                sys.puts("nope, no session");
+            }
+        });
 };
 
 var is_session_active = function is_session_active(session_id) {
@@ -36,25 +85,28 @@ var is_session_active = function is_session_active(session_id) {
 };
 
 var invalidate_session = function invalidate_session(session_id) {
-    
+    db.session.merge(session_id, { "active_flag": false }, function(err, res) {
+        // do nothing
+    });
+    mark_login_done_invalidate();
 };
 
-var create_session = function create_session(user_id, password_hash, client_host, client_key) {
+var create_session = function create_session() {
     // generate the session ID
     var date = new Date();
     var session_seed = date.toUTCString() + parseInt(Math.random() * 1000);
     var session_id = passwordHash(session_seed);
     
     // create the session key
-    var session_key = passwordHash(user_id + ":" + password_hash + ":" + client_key + ":" + session_id);
+    var session_key = passwordHash(login_credentials.user_id + ":" + login_credentials.password_hash + ":" + login_credentials.client_key + ":" + session_id);
 
     // store the session
     db.session.put(session_id, {
         "session_id": session_id,
         "session_key": session_key,
-        "user_id": user_id,
-        "client_host": client_host,
-        "client_key": client_key,
+        "user_id": login_credentials.user_id,
+        "client_host": login_credentials.client_host,
+        "client_key": login_credentials.client_key,
         "create_date": date.toUTCString(),
         "active_flag": true
     });
@@ -65,33 +117,30 @@ var create_session = function create_session(user_id, password_hash, client_host
     };
 };
 
-var is_valid_password = function is_valid_password(user_id, password_hash) {
+var is_valid_password = function is_valid_password() {
     var valid = false;
+    
+    // login_credentials.user_id
+    // login_credentials.password
     
     valid = true;
     
     return valid;
 }
 
-var do_login = function do_login(user_id, password_hash, client_host, client_key) {
-    console.log("user_id", user_id, "password_hash", password_hash, "client_host", client_host, "client_key", client_key);
+var do_login = function do_login() {
+    console.log("user_id", login_credentials.user_id, "password_hash", login_credentials.password_hash, "client_host", login_credentials.client_host, "client_key", login_credentials.client_key);
+    var my_session = undefined;
 
-    var results = {}
-    var active_session_id = get_active_session(user_id);
-    if (active_session_id) {
-        // remove the active session
-        invalidate_session(active_session_id);
-    }
-    
     // verify the password
-    if (is_valid_password(user_id, password_hash)) {
+    if (is_valid_password()) {
         // create the new session
-        results = create_session(user_id, password_hash, client_host, client_key);
+        my_session = create_session();
     } else {
         results["error"] = "invalid credentials";
     }
     
-    return results;
+    mark_login_done_session(my_session);
 };
 
 var load_session_keys = function load_session_keys(session_id) {
